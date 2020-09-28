@@ -1,3 +1,4 @@
+from sys import exit
 import argparse
 import logging
 from pathlib import Path
@@ -67,22 +68,24 @@ def import_matches(image_ids, database_path, pairs_path, matches_path,
         id0, id1 = image_ids[name0], image_ids[name1]
         if len({(id0, id1), (id1, id0)} & matched) > 0:
             continue
-        pair0 = names_to_pair(name0, name1)
-        pair1 = names_to_pair(name0, name1)
-        if pair0 in hfile:
-            pair = pair0
-        elif pair1 in hfile:
-            pair = pair1
-        else:
+        pair = names_to_pair(name0, name1)
+        if pair not in hfile:
             raise ValueError(f'Could not find pair {(name0, name1)}')
 
+        # Select matches
         matches = hfile[pair]['matches0'].__array__()
-        valid = matches > -1
-        if min_match_score:
-            scores = hfile[pair]['matching_scores0'].__array__()
-            valid = valid & (scores > min_match_score)
-        matches = np.stack([np.where(valid)[0], matches[valid]], -1)
-
+        if len(matches.shape) == 1:
+            valid = matches > -1        
+            if min_match_score:
+                scores = hfile[pair]['matching_scores0'].__array__()
+                valid = valid & (scores > min_match_score)
+            matches = np.stack([np.where(valid)[0], matches[valid]], -1)
+        else:
+            # For matches in ready format for colmap
+            if min_match_score:
+                scores = hfile[pair]['matching_scores0'].__array__()
+                valid = np.where(scores > min_match_score)[0]
+                matches = matches[valid]                
         db.add_matches(id0, id1, matches)
         matched |= {(id0, id1), (id1, id0)}
 
