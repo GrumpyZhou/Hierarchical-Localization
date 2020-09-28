@@ -58,16 +58,34 @@ def pose_from_cluster(qname, qinfo, db_ids, db_images, points3D,
 
         pair = names_to_pair(qname, db_name)
         matches = match_file[pair]['matches0'].__array__()
-        valid = np.where(matches > -1)[0]
-        valid = valid[points3D_ids[matches[valid]] != -1]
-        num_matches += len(valid)
+        if len(matches.shape) == 1:
+            valid = np.where(matches > -1)[0]
+            valid = valid[points3D_ids[matches[valid]] != -1]
+            num_matches += len(valid)
 
-        for idx in valid:
-            id_3D = points3D_ids[matches[idx]]
-            kp_idx_to_3D_to_db[idx][id_3D].append(i)
-            # avoid duplicate observations
-            if id_3D not in kp_idx_to_3D[idx]:
-                kp_idx_to_3D[idx].append(id_3D)
+            for idx in valid:
+                id_3D = points3D_ids[matches[idx]]
+                kp_idx_to_3D_to_db[idx][id_3D].append(i)
+                # avoid duplicate observations
+                if id_3D not in kp_idx_to_3D[idx]:
+                    kp_idx_to_3D[idx].append(id_3D)
+        else:
+            kpq_ids, kpdb_ids = matches[:, 0],  matches[:, 1]
+            try:
+                pt3d_ids = points3D_ids[kpdb_ids]
+            except:
+                print(qname, 'Wrong ids', kpq_ids, kpdb_ids)
+                continue
+            valid = np.where(pt3d_ids != -1)[0]
+            num_matches += len(valid)
+            
+            for idx in valid:
+                id_kpq = kpq_ids[idx]
+                id_3D = pt3d_ids[idx]
+                kp_idx_to_3D_to_db[id_kpq][id_3D].append(i)
+                # avoid duplicate observations
+                if id_3D not in kp_idx_to_3D[id_kpq]:
+                    kp_idx_to_3D[id_kpq].append(id_3D)                
 
     idxs = list(kp_idx_to_3D.keys())
     mkp_idxs = [i for i in idxs for _ in kp_idx_to_3D[i]]
@@ -120,7 +138,7 @@ def main(reference_sfm, queries, retrieval, features, matches, results,
         'loc': {},
     }
     logging.info('Starting localization...')
-    for qname, qinfo in tqdm(queries):
+    for qname, qinfo in tqdm(queries[::-1]):
         db_names = retrieval_dict[qname]
         db_ids = []
         for n in db_names:
