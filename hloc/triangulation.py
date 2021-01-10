@@ -7,6 +7,7 @@ import h5py
 import numpy as np
 import subprocess
 import pprint
+import os
 
 from .utils.read_write_model import (
         read_cameras_binary, read_images_binary, CAMERA_MODEL_NAMES)
@@ -60,6 +61,10 @@ def import_matches(image_ids, database_path, pairs_path, matches_path,
     with open(str(pairs_path), 'r') as f:
         pairs = [p.split(' ') for p in f.read().split('\n')]
 
+    res_dir = os.path.dirname(matches_path)
+    match_pair_txt = os.path.join(res_dir, 'matched_pairs.txt')
+    matched_pairs = open(match_pair_txt, 'w')
+    
     hfile = h5py.File(str(matches_path), 'r')
     db = COLMAPDatabase.connect(database_path)
 
@@ -70,7 +75,8 @@ def import_matches(image_ids, database_path, pairs_path, matches_path,
             continue
         pair = names_to_pair(name0, name1)
         if pair not in hfile:
-            raise ValueError(f'Could not find pair {(name0, name1)}')
+            print(f'Could not find pair {(name0, name1)}')
+            continue
 
         # Select matches
         matches = hfile[pair]['matches0'].__array__()
@@ -88,13 +94,16 @@ def import_matches(image_ids, database_path, pairs_path, matches_path,
                 matches = matches[valid]                
         db.add_matches(id0, id1, matches)
         matched |= {(id0, id1), (id1, id0)}
-
+        matched_pairs.write(f'{name0} {name1}\n')
+        
         if skip_geometric_verification:
             db.add_two_view_geometry(id0, id1, matches)
 
     hfile.close()
     db.commit()
     db.close()
+    matched_pairs.close()
+    return match_pair_txt
 
 
 def geometric_verification(colmap_path, database_path, pairs_path):
@@ -167,10 +176,11 @@ def main(sfm_dir, empty_sfm_model, image_dir, pairs, features, matches,
 
     image_ids = create_db_from_model(empty_sfm_model, database)
     import_features(image_ids, database, features)
-    import_matches(image_ids, database, pairs, matches,
-                   min_match_score, skip_geometric_verification)
+    match_pairs = import_matches(image_ids, database, pairs, matches,
+                                    min_match_score, skip_geometric_verification)
+    
     if not skip_geometric_verification:
-        geometric_verification(colmap_path, database, pairs)
+        geometric_verification(colmap_path, database, match_pairs)        
     stats = run_triangulation(
         colmap_path, model, database, image_dir, empty_sfm_model)
     logging.info(f'Statistics:\n{pprint.pformat(stats)}')
