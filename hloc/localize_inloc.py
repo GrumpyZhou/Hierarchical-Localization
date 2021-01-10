@@ -142,8 +142,9 @@ def pose_from_cluster_onfly_matching(dataset_dir, q, retrieved,
         try:
             # Matching
             t0 = time.time()
-            matches, _ , _ = matcher(imq_path, imr_path)
+            match_res = matcher(imq_path, imr_path)
             times.append(time.time() - t0)
+            matches = match_res[0]
             
             if len(matches) < skip_matches:
                 failed.append((q, r))
