@@ -46,7 +46,7 @@ def do_covisibility_clustering(frame_ids, all_images, points3D):
 
 
 def pose_from_cluster(qname, qinfo, db_ids, db_images, points3D,
-                      feature_file, match_file, thresh):
+                      feature_file, match_file, thresh, changed_format=False):
     kpq = feature_file[qname]['keypoints'].__array__()
     kp_idx_to_3D = defaultdict(list)
     kp_idx_to_3D_to_db = defaultdict(lambda: defaultdict(list))
@@ -61,7 +61,8 @@ def pose_from_cluster(qname, qinfo, db_ids, db_images, points3D,
             print(f'Skip pair {qname} {db_name}')
             continue
         matches = match_file[pair]['matches0'].__array__()
-        if len(matches.shape) == 1:
+        if not changed_format:
+            # SuperGlue original match format
             valid = np.where(matches > -1)[0]
             valid = valid[points3D_ids[matches[valid]] != -1]
             num_matches += len(valid)
@@ -73,6 +74,11 @@ def pose_from_cluster(qname, qinfo, db_ids, db_images, points3D,
                 if id_3D not in kp_idx_to_3D[idx]:
                     kp_idx_to_3D[idx].append(id_3D)
         else:
+            # Only single match            
+            if len(matches.shape) == 1: 
+                matches = matches.reshape(1, -1)
+                
+            # Changed format: pairs of keypoint ids 
             kpq_ids, kpdb_ids = matches[:, 0],  matches[:, 1]
             try:
                 pt3d_ids = points3D_ids[kpdb_ids]
@@ -115,8 +121,8 @@ def pose_from_cluster(qname, qinfo, db_ids, db_images, points3D,
     return ret, mkpq, mp3d, mp3d_ids, num_matches, (mkp_idxs, mkp_to_3D_to_db)
 
 
-def main(reference_sfm, queries, retrieval, features, matches, results,
-         ransac_thresh=12, covisibility_clustering=False):
+def main(reference_sfm, queries, retrieval, features, matches, 
+         results, ransac_thresh=12, covisibility_clustering=False, changed_format=False):
 
     assert reference_sfm.exists(), reference_sfm
     assert retrieval.exists(), retrieval
@@ -158,7 +164,9 @@ def main(reference_sfm, queries, retrieval, features, matches, results,
             for i, cluster_ids in enumerate(clusters):
                 ret, mkpq, mp3d, mp3d_ids, num_matches, _ = pose_from_cluster(
                     qname, qinfo, cluster_ids, db_images, points3D,
-                    feature_file, match_file, thresh=ransac_thresh)
+                    feature_file, match_file, thresh=ransac_thresh, 
+                    changed_format=changed_format
+                )
                 if ret['success'] and ret['num_inliers'] > best_inliers:
                     best_cluster = i
                     best_inliers = ret['num_inliers']
@@ -182,7 +190,9 @@ def main(reference_sfm, queries, retrieval, features, matches, results,
         else:
             ret, mkpq, mp3d, mp3d_ids, num_matches, map_ = pose_from_cluster(
                 qname, qinfo, db_ids, db_images, points3D,
-                feature_file, match_file, thresh=ransac_thresh)
+                feature_file, match_file, thresh=ransac_thresh,
+                changed_format=changed_format
+            )
             # logging.info(f'# inliers: {ret["num_inliers"]}')
 
             if ret['success']:
