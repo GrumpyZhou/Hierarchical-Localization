@@ -148,6 +148,8 @@ def main(reference_sfm, queries, retrieval, features, matches,
     }
     logging.info('Starting localization...')
     for qname, qinfo in tqdm(queries[::-1]):
+        if qname not in feature_file:
+            continue
         db_names = retrieval_dict[qname]
         db_ids = []
         for n in db_names:
