@@ -43,12 +43,15 @@ def import_features(image_ids, database_path, features_path):
     logging.info('Importing features into the database...')
     hfile = h5py.File(str(features_path), 'r')
     db = COLMAPDatabase.connect(database_path)
-
+    count = 0
     for image_name, image_id in tqdm(image_ids.items()):
+        if image_name not in hfile:
+            continue            
         keypoints = hfile[image_name]['keypoints'].__array__()
         keypoints += 0.5  # COLMAP origin
         db.add_keypoints(image_id, keypoints)
-
+        count += 1
+    logging.info(f'Total images {len(image_ids)} Imported features {count}')
     hfile.close()
     db.commit()
     db.close()
