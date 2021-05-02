@@ -62,7 +62,7 @@ def import_matches(image_ids, database_path, pairs_path, matches_path,
     logging.info('Importing matches into the database...')
 
     with open(str(pairs_path), 'r') as f:
-        pairs = [p.split(' ') for p in f.read().split('\n')]
+        pairs = [p.split() for p in f.readlines()]
 
     res_dir = os.path.dirname(matches_path)
     match_pair_txt = os.path.join(res_dir, 'matched_pairs.txt')
