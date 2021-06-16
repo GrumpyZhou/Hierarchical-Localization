@@ -122,8 +122,9 @@ def pose_from_cluster(qname, qinfo, db_ids, db_images, points3D,
 
 
 def main(reference_sfm, queries, retrieval, features, matches, 
-         results, ransac_thresh=12, covisibility_clustering=False, changed_format=False):
-
+         results, ransac_thresh=12, covisibility_clustering=False,
+         changed_format=False, benchmark='aachen'):
+    logging.info(f'Localize {benchmark} queries...')
     assert reference_sfm.exists(), reference_sfm
     assert retrieval.exists(), retrieval
     assert features.exists(), features
@@ -212,20 +213,36 @@ def main(reference_sfm, queries, retrieval, features, matches,
                 'keypoint_index_to_db': map_,
             }
 
-    logging.info(f'Localized {len(poses)} / {len(queries)} images.')
-    logging.info(f'Writing poses to {results}...')
-    with open(results, 'w') as f:
-        for q in poses:
-            qvec, tvec = poses[q]
-            qvec = ' '.join(map(str, qvec))
-            tvec = ' '.join(map(str, tvec))
-            name = q.split('/')[-1]
-            f.write(f'{name} {qvec} {tvec}\n')
+        if qname in poses:
+            logs['loc'][qname]['pose'] = poses[qname]
 
+    logging.info(f'Localized {len(poses)} / {len(queries)} images.')
     logs_path = f'{results}_logs.pkl'
     logging.info(f'Writing logs to {logs_path}...')
     with open(logs_path, 'wb') as f:
         pickle.dump(logs, f)
+
+    logging.info(f'Writing poses to {results}...')
+    if 'aachen' in benchmark:
+        with open(results, 'w') as f:
+            for q in poses:
+                qvec, tvec = poses[q]
+                qvec = ' '.join(map(str, qvec))
+                tvec = ' '.join(map(str, tvec))
+                name = q.split('/')[-1]
+                f.write(f'{name} {qvec} {tvec}\n')
+    elif 'robotcar' in benchmark:
+        f = open(results, 'w')
+        f2 = open(str(results).replace('.txt', '.v2.txt'), 'w')
+        for q in poses:
+            qvec, tvec = poses[q]
+            qvec = ' '.join(map(str, qvec))
+            tvec = ' '.join(map(str, tvec))
+            name = '/'.join(q.split('/')[-2:])  # include the camera name
+            f.write(f'{name} {qvec} {tvec}\n')
+
+            name_v2 = name.replace('jpg', 'png')
+            f2.write(f'{name_v2} {qvec} {tvec}\n')
     logging.info('Done!')
 
 
